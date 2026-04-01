@@ -32,6 +32,11 @@ jobs:
           flutter create .
           flutter pub get
 
+      - name: Fix Android Min SDK Version
+        run: |
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle
+          sed -i 's/minSdkVersion = flutter.minSdkVersion/minSdkVersion = 24/g' android/app/build.gradle
+
       - name: Build APK
         run: flutter build apk --release
 
