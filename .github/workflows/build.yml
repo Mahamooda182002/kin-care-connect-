@@ -31,8 +31,25 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK
-        run: flutter build apk --release --verbose
+      - name: Build APK (with detailed logging)
+        id: build_apk
+        run: |
+          flutter build apk --release --verbose > build_log.txt 2>&1 || export EXIT_CODE=$?
+          if [ -n "$EXIT_CODE" ] && [ "$EXIT_CODE" -ne 0 ]; then
+             echo "FLUTTER BUILD FAILED."
+             echo "### ❌ Flutter Build Failed" >> $GITHUB_STEP_SUMMARY
+             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+             tail -n 150 build_log.txt >> $GITHUB_STEP_SUMMARY
+             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+             exit $EXIT_CODE
+          fi
+
+      - name: Upload Build Log Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-build-logs
+          path: build_log.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
