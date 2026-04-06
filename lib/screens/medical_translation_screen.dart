@@ -139,7 +139,7 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
                     ),
                   ),
                 ),
-              ).animate(target: _isListening ? 1 : 0).scale(end: const Offset(1.1, 1.1), duration: 1.seconds).loop(reverse: true),
+              ).animate(target: _isListening ? 1 : 0).scale(end: const Offset(1.1, 1.1), duration: 1.seconds),
               
               const SizedBox(height: 24),
               
