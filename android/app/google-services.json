@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "708208954994",
+    "project_id": "kin-care-connect",
+    "storage_bucket": "kin-care-connect.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:708208954994:android:6e91924ae5225a25323ceb",
+        "android_client_info": {
+          "package_name": "com.kin_care_connect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-jSyFo5ErUqUeQcOFxMe_Dp6mnFtx314"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace "com.example.kin_care_connect"
+    namespace "com.kin_care_connect"
     compileSdk 35
     ndkVersion flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.kin_care_connect"
+        applicationId "com.kin_care_connect"
         minSdk 23
         targetSdk 35
         versionCode flutter.versionCode
