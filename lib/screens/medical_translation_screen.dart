@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/app_theme.dart';
 import '../services/gemini_service.dart';
+import '../widgets/glass_card.dart';
 
 class MedicalTranslationScreen extends StatefulWidget {
   const MedicalTranslationScreen({super.key});
@@ -49,7 +51,6 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
     }
     
     _lastWords = '';
-    // Clear previous results
     Provider.of<GeminiService>(context, listen: false).analysisResult = '';
     
     await _speechToText.listen(
@@ -87,91 +88,120 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
     final geminiService = context.watch<GeminiService>();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
           'Clinical Translator',
           style: GoogleFonts.grandHotel(
             fontSize: 32,
+            color: Colors.white,
             fontWeight: FontWeight.w400,
           ),
         ),
+        backgroundColor: Colors.transparent,
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.black.withOpacity(0.5)),
+          ),
+        ),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Record Doctor Visit',
-                style: Theme.of(context).textTheme.displayMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'We will translate complex medical jargon into 3 simple, important tasks for you.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textMuted),
-              ),
-              
-              const SizedBox(height: 32),
-              
-              // Recording Interface
-              Center(
-                child: GestureDetector(
-                  onTap: _isListening ? _stopListening : _startListening,
-                  child: Container(
-                    height: 150,
-                    width: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _isListening ? AppTheme.error.withOpacity(0.1) : AppTheme.surface,
-                      border: Border.all(
-                        color: _isListening ? AppTheme.error : AppTheme.secondary,
-                        width: 4,
-                      ),
-                      boxShadow: AppTheme.softShadows,
-                    ),
-                    child: Center(
-                      child: Icon(
-                        _isListening ? Icons.stop_rounded : Icons.mic_rounded,
-                        size: 64,
-                        color: _isListening ? AppTheme.error : AppTheme.textLight,
-                      ),
-                    ),
-                  ),
-                ),
-              ).animate(target: _isListening ? 1 : 0).scale(end: const Offset(1.1, 1.1), duration: 1.seconds),
-              
-              const SizedBox(height: 24),
-              
-              Center(
-                child: Text(
-                  _isListening 
-                      ? 'Listening... Tap to stop' 
-                      : (_speechEnabled ? 'Tap to start recording' : 'Speech recognition unavailable'),
-                  style: TextStyle(
-                    color: _isListening ? AppTheme.error : AppTheme.accentBlue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              if (_lastWords.isNotEmpty && !_isListening && !geminiService.isParsing)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Text(
-                    'Transcript: "$_lastWords"',
-                    style: TextStyle(fontStyle: FontStyle.italic, color: AppTheme.textMuted),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              
-              Expanded(
-                child: _buildResultArea(geminiService),
-              ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF2C3E50),
+              Color(0xFF3498DB),
+              Color(0xFF2980B9),
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Record Doctor Visit',
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'We will translate complex medical jargon into 3 simple, important tasks for you.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                ),
+                
+                const SizedBox(height: 48),
+                
+                // Recording Interface
+                Center(
+                  child: GestureDetector(
+                    onTap: _isListening ? _stopListening : _startListening,
+                    child: Container(
+                      height: 160,
+                      width: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _isListening ? AppTheme.error.withOpacity(0.8) : Colors.white.withOpacity(0.2),
+                        border: Border.all(
+                          color: _isListening ? AppTheme.error : Colors.white.withOpacity(0.5),
+                          width: 4,
+                        ),
+                        boxShadow: [
+                          if (_isListening) 
+                             BoxShadow(color: AppTheme.error.withOpacity(0.6), blurRadius: 30, spreadRadius: 10)
+                        ],
+                      ),
+                      child: Center(
+                        child: Icon(
+                          _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                          size: 72,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ).animate(
+                  target: _isListening ? 1 : 0, 
+                  onPlay: (controller) => controller.repeat(reverse: true)
+                ).scaleXY(end: 1.15, duration: 1000.ms, curve: Curves.easeInOut),
+                
+                const SizedBox(height: 32),
+                
+                Center(
+                  child: Text(
+                    _isListening 
+                        ? 'Listening... Tap to stop' 
+                        : (_speechEnabled ? 'Tap microphone to start' : 'Speech recognition unavailable'),
+                    style: TextStyle(
+                      color: _isListening ? Colors.white : Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                if (_lastWords.isNotEmpty && !_isListening && !geminiService.isParsing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      'Transcript: "$_lastWords"',
+                      style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.white70),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                
+                Expanded(
+                  child: _buildResultArea(geminiService),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -184,43 +214,37 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: AppTheme.accentBlue),
+            CircularProgressIndicator(color: Colors.white),
             SizedBox(height: 16),
-            Text('Analyzing conversation...', style: TextStyle(color: AppTheme.textMuted)),
+            Text('Simplifying medical tasks...', style: TextStyle(color: Colors.white)),
           ],
         ),
       );
     }
 
     if (geminiService.analysisResult.isNotEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.secondary),
-          boxShadow: AppTheme.softShadows,
-        ),
+      return GlassCard(
+        opacity: 0.15,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.medical_information_outlined, color: AppTheme.accentBlue, size: 28),
+                  const Icon(Icons.medical_information_outlined, color: Colors.white, size: 28),
                   const SizedBox(width: 12),
                   Text(
-                    'Medical Card',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                    'Action Plan',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
               ),
-              const Divider(color: AppTheme.secondary, height: 32),
+              const Divider(color: Colors.white30, height: 32),
               Text(
                 geminiService.analysisResult,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   height: 1.6,
-                  color: AppTheme.textMedium,
+                  color: Colors.white,
                 ),
               ),
             ],

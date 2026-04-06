@@ -77,8 +77,7 @@ class GeminiService extends ChangeNotifier {
       );
 
       final prompt = '''
-      Analyze this doctor-patient conversation and summarize the 3 most important health tasks in simple, non-medical language for a family member.
-      Format the summary as a readable list.
+      Simplify this medical conversation into 3 easy action items for a non-medical family member.
       Conversation transcript: "$transcript"
       ''';
 

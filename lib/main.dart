@@ -10,6 +10,8 @@ import 'screens/medical_translation_screen.dart';
 import 'services/firebase_service.dart';
 import 'services/gemini_service.dart';
 
+import 'services/notification_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -18,7 +20,8 @@ void main() async {
     debugPrint("Firebase init failed (expected without google-services.json): $e");
   }
 
-  
+  await NotificationService.initialize();
+
   runApp(
     MultiProvider(
       providers: [
