@@ -1,12 +1,18 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 class GeminiService extends ChangeNotifier {
-  // Provided by user
   final String _apiKey = 'AIzaSyCGZnfjWql6UUUkQF5y6nRtbmf2w7zzXDI';
   bool isParsing = false;
+  
+  // Scam Shield State
   String analysisResult = '';
+  int riskScore = 0;
   bool isScamDetected = false;
+
+  // Medical Translation State
+  String medicalSummary = '';
 
   void _setLoading(bool value) {
     isParsing = value;
@@ -16,6 +22,7 @@ class GeminiService extends ChangeNotifier {
   Future<void> analyzeText(String userText) async {
     if (userText.trim().isEmpty) {
       analysisResult = 'Please enter some text to analyze.';
+      riskScore = 0;
       isScamDetected = false;
       notifyListeners();
       return;
@@ -28,47 +35,45 @@ class GeminiService extends ChangeNotifier {
       final model = GenerativeModel(
         model: 'gemini-1.5-pro-latest',
         apiKey: _apiKey,
+        generationConfig: GenerationConfig(responseMimeType: 'application/json'),
       );
 
       final prompt = '''
-      You are an expert scam and fraud detector. Analyze the following text snippet/transcript and determine if it looks like a scam, paying special attention to "High-Pressure Scams" or "AI-Voice patterns".
-      Reply with EXACTLY ONE WORD on the first line: either "SAFE" or "SCAM".
-      On the second line, provide a short, easy-to-read explanation (max 2 sentences) of why it's safe or dangerous.
+      You are an expert scam and fraud detector. Analyze this text for scams (high-pressure, voice cloning, phishing).
+      Return ONLY a JSON object with this exact structure:
+      {
+        "risk_score": <number between 0 and 100>,
+        "reason": "<short explanation why it's safe or a scam (max 2 sentences)>"
+      }
+      
       Text to analyze: "$userText"
       ''';
 
       final content = [Content.text(prompt)];
       final response = await model.generateContent(content);
-
-      final responseText = response.text?.trim() ?? '';
+      final responseText = response.text?.trim() ?? '{}';
       
-      if (responseText.toUpperCase().startsWith('SCAM')) {
-        isScamDetected = true;
-        analysisResult = responseText.substring(4).trim();
-      } else if (responseText.toUpperCase().startsWith('SAFE')) {
-        isScamDetected = false;
-        analysisResult = responseText.substring(4).trim();
-      } else {
-        isScamDetected = false;
-        analysisResult = responseText;
-      }
+      final Map<String, dynamic> jsonResponse = jsonDecode(responseText);
+      
+      riskScore = jsonResponse['risk_score'] ?? 0;
+      analysisResult = jsonResponse['reason'] ?? 'Unknown formatting.';
+      isScamDetected = riskScore > 50;
+
     } catch (e) {
-      analysisResult = 'Error connecting to Gemini Service: $e';
+      analysisResult = 'Error connecting to Gemini: $e';
+      riskScore = 0;
       isScamDetected = false;
     } finally {
       _setLoading(false);
     }
   }
 
-  Future<void> translateMedicalJargon(String transcript) async {
-    if (transcript.trim().isEmpty) {
-      analysisResult = 'No audio recorded. Please try again.';
-      notifyListeners();
-      return;
-    }
+  Future<void> translateMedicalJargonAudio(Uint8List audioBytes, String mimeType) async {
+    if (audioBytes.isEmpty) return;
 
     _setLoading(true);
-    analysisResult = '';
+    medicalSummary = '';
+    notifyListeners();
 
     try {
       final model = GenerativeModel(
@@ -76,17 +81,19 @@ class GeminiService extends ChangeNotifier {
         apiKey: _apiKey,
       );
 
-      final prompt = '''
-      Simplify this medical conversation into 3 easy action items for a non-medical family member.
-      Conversation transcript: "$transcript"
-      ''';
+      final prompt = 'Summarize this medical audio for a family caregiver. Provide 3 clear actionable points.';
 
-      final content = [Content.text(prompt)];
+      final content = [
+        Content.multi([
+          TextPart(prompt),
+          DataPart(mimeType, audioBytes),
+        ])
+      ];
+
       final response = await model.generateContent(content);
-
-      analysisResult = response.text ?? 'Could not generate summary.';
+      medicalSummary = response.text ?? 'Could not generate summary.';
     } catch (e) {
-      analysisResult = 'Error connecting to Gemini Service: $e';
+      medicalSummary = 'Error connecting to Gemini Audio API: $e';
     } finally {
       _setLoading(false);
     }

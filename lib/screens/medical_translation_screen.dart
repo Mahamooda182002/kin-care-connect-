@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/app_theme.dart';
@@ -18,68 +20,63 @@ class MedicalTranslationScreen extends StatefulWidget {
 }
 
 class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
-  final stt.SpeechToText _speechToText = stt.SpeechToText();
-  bool _speechEnabled = false;
-  bool _isListening = false;
-  String _lastWords = '';
+  late final AudioRecorder _audioRecorder;
+  bool _isRecording = false;
+  String? _audioFilePath;
 
   @override
   void initState() {
     super.initState();
-    _initSpeech();
+    _audioRecorder = AudioRecorder();
   }
 
-  void _initSpeech() async {
-    _speechEnabled = await _speechToText.initialize(
-      onError: (val) => debugPrint('onError: $val'),
-      onStatus: (val) {
-        debugPrint('onStatus: $val');
-        if (val == 'done' || val == 'notListening') {
-          if (_isListening && mounted) {
-            setState(() => _isListening = false);
-            _processRecording();
-          }
-        }
-      },
-    );
-    setState(() {});
+  @override
+  void dispose() {
+    _audioRecorder.dispose();
+    super.dispose();
   }
 
-  void _startListening() async {
-    if (!_speechEnabled) {
-      _initSpeech();
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final dir = await getTemporaryDirectory();
+        _audioFilePath = '${dir.path}/medical_audio.m4a';
+        
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc),
+          path: _audioFilePath!,
+        );
+        setState(() {
+          _isRecording = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Recording error: $e");
     }
-    
-    _lastWords = '';
-    Provider.of<GeminiService>(context, listen: false).analysisResult = '';
-    
-    await _speechToText.listen(
-      onResult: _onSpeechResult,
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 5),
-    );
-    setState(() {
-      _isListening = true;
-    });
   }
 
-  void _stopListening() async {
-    await _speechToText.stop();
-    setState(() {
-      _isListening = false;
-    });
-    _processRecording();
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _audioRecorder.stop();
+      setState(() {
+        _isRecording = false;
+        _audioFilePath = path;
+      });
+      _processRecording();
+    } catch (e) {
+      debugPrint("Stop recording error: $e");
+    }
   }
 
-  void _onSpeechResult(SpeechRecognitionResult result) {
-    setState(() {
-      _lastWords = result.recognizedWords;
-    });
-  }
-
-  void _processRecording() {
-    if (_lastWords.isNotEmpty) {
-      Provider.of<GeminiService>(context, listen: false).translateMedicalJargon(_lastWords);
+  Future<void> _processRecording() async {
+    if (_audioFilePath != null) {
+      final file = File(_audioFilePath!);
+      if (await file.exists()) {
+        Uint8List bytes = await file.readAsBytes();
+        if (mounted) {
+          Provider.of<GeminiService>(context, listen: false).translateMedicalJargonAudio(bytes, 'audio/mp4');
+        }
+      }
     }
   }
 
@@ -92,10 +89,10 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
       appBar: AppBar(
         title: Text(
           'Clinical Translator',
-          style: GoogleFonts.grandHotel(
-            fontSize: 32,
+          style: GoogleFonts.inter(
+            fontSize: 24,
             color: Colors.white,
-            fontWeight: FontWeight.w400,
+            fontWeight: FontWeight.w600,
           ),
         ),
         backgroundColor: Colors.transparent,
@@ -126,38 +123,37 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
               children: [
                 Text(
                   'Record Doctor Visit',
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: Colors.white),
+                  style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'We will translate complex medical jargon into 3 simple, important tasks for you.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                  'Capture audio of complex medical jargon and let AI give you 3 simple actionable points.',
+                  style: GoogleFonts.inter(fontSize: 16, color: Colors.white70),
                 ),
                 
                 const SizedBox(height: 48),
                 
-                // Recording Interface
                 Center(
                   child: GestureDetector(
-                    onTap: _isListening ? _stopListening : _startListening,
+                    onTap: _isRecording ? _stopRecording : _startRecording,
                     child: Container(
                       height: 160,
                       width: 160,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _isListening ? AppTheme.error.withOpacity(0.8) : Colors.white.withOpacity(0.2),
+                        color: _isRecording ? AppTheme.error.withOpacity(0.8) : Colors.white.withOpacity(0.2),
                         border: Border.all(
-                          color: _isListening ? AppTheme.error : Colors.white.withOpacity(0.5),
+                          color: _isRecording ? AppTheme.error : Colors.white.withOpacity(0.5),
                           width: 4,
                         ),
                         boxShadow: [
-                          if (_isListening) 
+                          if (_isRecording) 
                              BoxShadow(color: AppTheme.error.withOpacity(0.6), blurRadius: 30, spreadRadius: 10)
                         ],
                       ),
                       child: Center(
                         child: Icon(
-                          _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                          _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
                           size: 72,
                           color: Colors.white,
                         ),
@@ -165,7 +161,7 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
                     ),
                   ),
                 ).animate(
-                  target: _isListening ? 1 : 0, 
+                  target: _isRecording ? 1 : 0, 
                   onPlay: (controller) => controller.repeat(reverse: true)
                 ).scaleXY(end: 1.15, duration: 1000.ms, curve: Curves.easeInOut),
                 
@@ -173,11 +169,9 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
                 
                 Center(
                   child: Text(
-                    _isListening 
-                        ? 'Listening... Tap to stop' 
-                        : (_speechEnabled ? 'Tap microphone to start' : 'Speech recognition unavailable'),
-                    style: TextStyle(
-                      color: _isListening ? Colors.white : Colors.white70,
+                    _isRecording ? 'Recording... Tap to stop' : 'Tap microphone to start',
+                    style: GoogleFonts.inter(
+                      color: _isRecording ? Colors.white : Colors.white70,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -185,17 +179,6 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
                 ),
                 
                 const SizedBox(height: 24),
-                
-                if (_lastWords.isNotEmpty && !_isListening && !geminiService.isParsing)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: Text(
-                      'Transcript: "$_lastWords"',
-                      style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.white70),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
                 
                 Expanded(
                   child: _buildResultArea(geminiService),
@@ -216,13 +199,13 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
           children: [
             CircularProgressIndicator(color: Colors.white),
             SizedBox(height: 16),
-            Text('Simplifying medical tasks...', style: TextStyle(color: Colors.white)),
+            Text('Processing Audio...', style: TextStyle(color: Colors.white)),
           ],
         ),
       );
     }
 
-    if (geminiService.analysisResult.isNotEmpty) {
+    if (geminiService.medicalSummary.isNotEmpty) {
       return GlassCard(
         opacity: 0.15,
         child: SingleChildScrollView(
@@ -235,15 +218,16 @@ class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
                   const SizedBox(width: 12),
                   Text(
                     'Action Plan',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
+                    style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
               ),
               const Divider(color: Colors.white30, height: 32),
               Text(
-                geminiService.analysisResult,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                geminiService.medicalSummary,
+                style: GoogleFonts.inter(
                   height: 1.6,
+                  fontSize: 16,
                   color: Colors.white,
                 ),
               ),

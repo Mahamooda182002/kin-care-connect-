@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:syncfusion_flutter_gauges/gauges.dart';
 import '../services/gemini_service.dart';
-import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 
 class ScamShieldScreen extends StatefulWidget {
@@ -25,32 +25,25 @@ class _ScamShieldScreenState extends State<ScamShieldScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic background based on scam detection stage
     return Consumer<GeminiService>(
       builder: (context, gemini, child) {
-        final isScam = gemini.isScamDetected;
         final hasResult = gemini.analysisResult.isNotEmpty && !gemini.isParsing;
+        final riskScore = gemini.riskScore.toDouble();
         
         List<Color> bgColors = [
           const Color(0xFF1F1C2C),
           const Color(0xFF928DAB),
         ];
-        
-        if (hasResult) {
-          bgColors = isScam 
-              ? [const Color(0xFF801336), const Color(0xFFC72C41)] // Red Danger
-              : [const Color(0xFF134E5E), const Color(0xFF71B280)]; // Green Safe
-        }
 
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: AppBar(
             title: Text(
               'Fraud Protection',
-              style: GoogleFonts.grandHotel(
-                fontSize: 32,
+              style: GoogleFonts.inter(
+                fontSize: 24,
                 color: Colors.white,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600,
               ),
             ),
             backgroundColor: Colors.transparent,
@@ -74,49 +67,46 @@ class _ScamShieldScreenState extends State<ScamShieldScreen> {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Scam Shield',
-                      style: Theme.of(context).textTheme.displayMedium?.copyWith(color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Paste any suspicious SMS, email, or message below to check for scams.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    Expanded(
-                      flex: 2,
-                      child: GlassCard(
-                        opacity: 0.15,
-                        padding: EdgeInsets.zero,
-                        child: TextField(
-                          controller: _textController,
-                          maxLines: null,
-                          expands: true,
-                          style: const TextStyle(color: Colors.white, fontSize: 18),
-                          decoration: InputDecoration(
-                            hintText: 'Paste suspicious text or transcript here...',
-                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                            fillColor: Colors.transparent,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(24),
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverList(
+                      delegate: SliverChildListDelegate([
+                        Text(
+                          'Scam Shield',
+                          style: GoogleFonts.inter(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
-                      ).animate().fade(delay: 200.ms).slideY(begin: 0.1),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                        const SizedBox(height: 8),
+                        Text(
+                          'Paste any suspicious message below to analyze its fraud risk score.',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        GlassCard(
+                          opacity: 0.15,
+                          padding: EdgeInsets.zero,
+                          child: TextField(
+                            controller: _textController,
+                            maxLines: 5,
+                            style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                            decoration: InputDecoration(
+                              hintText: 'Paste suspicious text or transcript here...',
+                              hintStyle: GoogleFonts.inter(color: Colors.white.withOpacity(0.5)),
+                              fillColor: Colors.transparent,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.all(24),
+                            ),
+                          ),
+                        ).animate().fade(delay: 200.ms).slideY(begin: 0.1),
+                        const SizedBox(height: 24),
+                        
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white.withOpacity(0.2),
@@ -141,16 +131,16 @@ class _ScamShieldScreenState extends State<ScamShieldScreen> {
                                 ) 
                               : const Icon(Icons.security, size: 28, color: Colors.white),
                           label: Text(
-                            gemini.isParsing ? 'Analyzing...' : 'Scan for Fraud',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                            gemini.isParsing ? 'Analyzing Risk...' : 'Scan for Fraud Risk',
+                            style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                         ).animate().fade(delay: 400.ms),
 
                         const SizedBox(height: 32),
 
                         if (hasResult)
-                          _buildResultShield(gemini),
-                      ],
+                          _buildGaugeShield(gemini, riskScore),
+                      ]),
                     ),
                   ],
                 ),
@@ -162,49 +152,57 @@ class _ScamShieldScreenState extends State<ScamShieldScreen> {
     );
   }
 
-  Widget _buildResultShield(GeminiService gemini) {
-    final bool isScam = gemini.isScamDetected;
-    final Color shieldColor = isScam ? const Color(0xFFFF5252) : const Color(0xFF69F0AE);
-    final IconData shieldIcon = isScam ? Icons.gpp_bad : Icons.gpp_good;
-    final String shieldText = isScam ? 'SCAM DETECTED' : 'SAFE';
-
+  Widget _buildGaugeShield(GeminiService gemini, double riskScore) {
     return GlassCard(
       opacity: 0.2,
-      borderColor: shieldColor,
       child: Column(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: shieldColor.withOpacity(0.5), blurRadius: 40, spreadRadius: 10)
-              ]
-            ),
-            child: Icon(shieldIcon, size: 90, color: shieldColor)
-                .animate()
-                .scaleXY(begin: 0.5, end: 1.0, curve: Curves.elasticOut, duration: 1000.ms),
+          SizedBox(
+            height: 250,
+            child: SfRadialGauge(
+              axes: <RadialAxis>[
+                RadialAxis(
+                  minimum: 0,
+                  maximum: 100,
+                  ranges: <GaugeRange>[
+                    GaugeRange(startValue: 0, endValue: 30, color: Colors.green),
+                    GaugeRange(startValue: 30, endValue: 70, color: Colors.orange),
+                    GaugeRange(startValue: 70, endValue: 100, color: Colors.red),
+                  ],
+                  pointers: <GaugePointer>[
+                    NeedlePointer(value: riskScore, needleColor: Colors.white, knobStyle: KnobStyle(color: Colors.white)),
+                  ],
+                  annotations: <GaugeAnnotation>[
+                    GaugeAnnotation(
+                      widget: Text(
+                        '${riskScore.toInt()}% Risk',
+                        style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      angle: 90,
+                      positionFactor: 0.5,
+                    )
+                  ],
+                ),
+              ],
+            ).animate().scale(duration: 600.ms),
           ),
-          
-          const SizedBox(height: 24),
-          
+          const SizedBox(height: 16),
           Text(
-            shieldText,
-            style: Theme.of(context).textTheme.displayMedium?.copyWith(
-              color: shieldColor,
-              letterSpacing: 2,
+            gemini.isScamDetected ? 'High Danger Scam Detected' : 'Likely Safe',
+            style: GoogleFonts.inter(
+              fontSize: 22,
+              color: gemini.isScamDetected ? Colors.redAccent : Colors.greenAccent,
               fontWeight: FontWeight.bold,
             ),
           ).animate().fadeIn(delay: 300.ms),
-          
           const SizedBox(height: 16),
-          
           Text(
             gemini.analysisResult,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            style: GoogleFonts.inter(
               color: Colors.white,
               height: 1.5,
-              fontSize: 18,
+              fontSize: 16,
             ),
           ).animate().fadeIn(delay: 500.ms),
         ],
@@ -212,4 +210,3 @@ class _ScamShieldScreenState extends State<ScamShieldScreen> {
     ).animate().fadeIn().slideY(begin: 0.1);
   }
 }
-
