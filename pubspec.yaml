@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -20,27 +20,24 @@ dependencies:
   
   # Sensors & Background
   sensors_plus: ^5.0.1
-  flutter_background_service: ^3.0.1
+  flutter_background_service: ^5.0.5
+  flutter_background_service_android: ^6.2.2
   
-  # UI & Gauges
-  syncfusion_flutter_gauges: ^24.2.3
+  # Audio - PINNED to exact working version
+  record: 5.0.4
+  path_provider: ^2.1.4
   
-  # Audio
-  record: ^5.0.5
-  path_provider: ^2.1.2
   # Notifications
   flutter_local_notifications: ^17.2.3
-  
-  # Speech
-  speech_to_text: ^7.0.0
   
   # Permissions
   permission_handler: ^11.3.1
   
   # UI
+  syncfusion_flutter_gauges: ^27.1.48
   cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
   glassmorphism: ^3.0.0
-  google_fonts: ^6.1.0
   flutter_animate: ^4.5.0
   provider: ^6.1.1
 

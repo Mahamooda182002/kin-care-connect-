@@ -1,45 +1,21 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:ui';
-import 'dart:math';
-
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BackgroundMonitorService {
   static Future<void> initialize() async {
     final service = FlutterBackgroundService();
-
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'routine_intelligence_bg',
-      'Routine Monitor',
-      description: 'Continuously monitors movement to ensure elder safety.',
-      importance: Importance.low,
-    );
-
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
-
-    if (Platform.isAndroid) {
-      await flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(channel);
-    }
-
     await service.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: onStart,
         autoStart: true,
         isForegroundMode: true,
-        notificationChannelId: 'routine_intelligence_bg',
-        initialNotificationTitle: 'Routine Monitor Active',
-        initialNotificationContent: 'Monitoring movement...',
+        notificationChannelId: 'kin_care_channel',
+        initialNotificationTitle: 'Kin Care Connect',
+        initialNotificationContent: 'Monitoring activity...',
         foregroundServiceNotificationId: 888,
       ),
       iosConfiguration: IosConfiguration(
@@ -48,65 +24,49 @@ class BackgroundMonitorService {
         onBackground: onIosBackground,
       ),
     );
-
-    service.startService();
   }
 
   @pragma('vm:entry-point')
   static Future<bool> onIosBackground(ServiceInstance service) async {
-    WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
     return true;
   }
 
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
-    DartPluginRegistrant.ensureInitialized();
-    WidgetsFlutterBinding.ensureInitialized();
-
-    try {
-      await Firebase.initializeApp();
-    } catch (e) {
-      debugPrint("BG Firebase init error: $e");
-    }
-
     if (service is AndroidServiceInstance) {
       service.on('setAsForeground').listen((event) {
         service.setAsForegroundService();
       });
-      service.on('setAsBackground').listen((event) {
-        service.setAsBackgroundService();
-      });
     }
 
-    service.on('stopService').listen((event) {
-      service.stopSelf();
+    DateTime lastMovement = DateTime.now();
+    double lastX = 0, lastY = 0, lastZ = 0;
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'default_user';
+
+    accelerometerEventStream().listen((event) {
+      double delta = (event.x - lastX).abs() +
+          (event.y - lastY).abs() +
+          (event.z - lastZ).abs();
+      if (delta > 1.5) {
+        lastMovement = DateTime.now();
+        lastX = event.x;
+        lastY = event.y;
+        lastZ = event.z;
+        FirebaseFirestore.instance
+            .collection('status')
+            .doc(uid)
+            .set({'last_seen': FieldValue.serverTimestamp()});
+      }
     });
 
-    const double movementThreshold = 1.5;
-    
-    // Listen to accelerometer events in background
-    accelerometerEventStream().listen((AccelerometerEvent event) async {
-      double magnitude = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
-      bool currentlyMoving = (magnitude - 9.8).abs() > movementThreshold;
-
-      if (currentlyMoving) {
+    Timer.periodic(const Duration(minutes: 30), (timer) {
+      final diff = DateTime.now().difference(lastMovement);
+      if (diff.inHours >= 4) {
         if (service is AndroidServiceInstance) {
           service.setForegroundNotificationInfo(
-            title: "Routine Monitor",
-            content: "Movement Detetced at ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}",
+            title: 'Kin Care Connect',
+            content: 'No movement detected for 4 hours!',
           );
-        }
-        
-        try {
-          // Write to Firestore status collection using a dummy uid like 
-          const userId = 'user_dummy_123';
-          await FirebaseFirestore.instance.collection('status').doc(userId).set({
-            'last_seen': FieldValue.serverTimestamp(),
-            'isMoving': true,
-          }, SetOptions(merge: true));
-        } catch (e) {
-          debugPrint("Failed Firestore BG sync: $e");
         }
       }
     });

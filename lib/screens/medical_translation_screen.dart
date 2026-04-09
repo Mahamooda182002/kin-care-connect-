@@ -1,242 +1,135 @@
 import 'dart:io';
-import 'dart:ui';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-
-import '../theme/app_theme.dart';
-import '../services/gemini_service.dart';
-import '../widgets/glass_card.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class MedicalTranslationScreen extends StatefulWidget {
   const MedicalTranslationScreen({super.key});
-
   @override
-  State<MedicalTranslationScreen> createState() => _MedicalTranslationScreenState();
+  State<MedicalTranslationScreen> createState() =>
+      _MedicalTranslatorScreenState();
 }
 
-class _MedicalTranslationScreenState extends State<MedicalTranslationScreen> {
-  late final AudioRecorder _audioRecorder;
+class _MedicalTranslatorScreenState extends State<MedicalTranslationScreen> {
+  final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
-  String? _audioFilePath;
+  String _summary = '';
+  String _recordingPath = '';
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _audioRecorder = AudioRecorder();
-  }
-
-  @override
-  void dispose() {
-    _audioRecorder.dispose();
-    super.dispose();
-  }
+  final String _geminiKey = 'AIzaSyCGZnfjWql6UUUkQF5y6nRtbmf2w7zzXDI';
 
   Future<void> _startRecording() async {
-    try {
-      if (await _audioRecorder.hasPermission()) {
-        final dir = await getTemporaryDirectory();
-        _audioFilePath = '${dir.path}/medical_audio.m4a';
-        
-        await _audioRecorder.start(
-          const RecordConfig(encoder: AudioEncoder.aacLc),
-          path: _audioFilePath!,
-        );
-        setState(() {
-          _isRecording = true;
-        });
-      }
-    } catch (e) {
-      debugPrint("Recording error: $e");
+    if (await _recorder.hasPermission()) {
+      final dir = await getTemporaryDirectory();
+      _recordingPath = '${dir.path}/medical_audio.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: _recordingPath,
+      );
+      setState(() => _isRecording = true);
     }
   }
 
-  Future<void> _stopRecording() async {
+  Future<void> _stopAndAnalyze() async {
+    await _recorder.stop();
+    setState(() {
+      _isRecording = false;
+      _isLoading = true;
+    });
+
     try {
-      final path = await _audioRecorder.stop();
+      final model = GenerativeModel(
+        model: 'gemini-1.5-flash',
+        apiKey: _geminiKey,
+      );
+      final audioBytes = await File(_recordingPath).readAsBytes();
+      final response = await model.generateContent([
+        Content.multi([
+          DataPart('audio/m4a', audioBytes),
+          TextPart(
+            'Summarize this medical audio for a family caregiver. '
+            'Give 3 simple action items.',
+          ),
+        ])
+      ]);
       setState(() {
-        _isRecording = false;
-        _audioFilePath = path;
+        _summary = response.text ?? 'No summary generated.';
+        _isLoading = false;
       });
-      _processRecording();
     } catch (e) {
-      debugPrint("Stop recording error: $e");
-    }
-  }
-
-  Future<void> _processRecording() async {
-    if (_audioFilePath != null) {
-      final file = File(_audioFilePath!);
-      if (await file.exists()) {
-        Uint8List bytes = await file.readAsBytes();
-        if (mounted) {
-          Provider.of<GeminiService>(context, listen: false).translateMedicalJargonAudio(bytes, 'audio/mp4');
-        }
-      }
+      setState(() {
+        _summary = 'Error analyzing audio: $e';
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final geminiService = context.watch<GeminiService>();
-
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFF0F0F1E),
       appBar: AppBar(
-        title: Text(
-          'Clinical Translator',
-          style: GoogleFonts.inter(
-            fontSize: 24,
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        title: const Text('Medical Translator',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
-        flexibleSpace: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(color: Colors.black.withOpacity(0.5)),
-          ),
-        ),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF2C3E50),
-              Color(0xFF3498DB),
-              Color(0xFF2980B9),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Record Doctor Visit',
-                  style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Capture audio of complex medical jargon and let AI give you 3 simple actionable points.',
-                  style: GoogleFonts.inter(fontSize: 16, color: Colors.white70),
-                ),
-                
-                const SizedBox(height: 48),
-                
-                Center(
-                  child: GestureDetector(
-                    onTap: _isRecording ? _stopRecording : _startRecording,
-                    child: Container(
-                      height: 160,
-                      width: 160,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _isRecording ? AppTheme.error.withOpacity(0.8) : Colors.white.withOpacity(0.2),
-                        border: Border.all(
-                          color: _isRecording ? AppTheme.error : Colors.white.withOpacity(0.5),
-                          width: 4,
-                        ),
-                        boxShadow: [
-                          if (_isRecording) 
-                             BoxShadow(color: AppTheme.error.withOpacity(0.6), blurRadius: 30, spreadRadius: 10)
-                        ],
-                      ),
-                      child: Center(
-                        child: Icon(
-                          _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                          size: 72,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ).animate(
-                  target: _isRecording ? 1 : 0, 
-                  onPlay: (controller) => controller.repeat(reverse: true)
-                ).scaleXY(end: 1.15, duration: 1000.ms, curve: Curves.easeInOut),
-                
-                const SizedBox(height: 32),
-                
-                Center(
-                  child: Text(
-                    _isRecording ? 'Recording... Tap to stop' : 'Tap microphone to start',
-                    style: GoogleFonts.inter(
-                      color: _isRecording ? Colors.white : Colors.white70,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                Expanded(
-                  child: _buildResultArea(geminiService),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultArea(GeminiService geminiService) {
-    if (geminiService.isParsing) {
-      return const Center(
+      body: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 16),
-            Text('Processing Audio...', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-      );
-    }
-
-    if (geminiService.medicalSummary.isNotEmpty) {
-      return GlassCard(
-        opacity: 0.15,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.medical_information_outlined, color: Colors.white, size: 28),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Action Plan',
-                    style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ],
-              ),
-              const Divider(color: Colors.white30, height: 32),
-              Text(
-                geminiService.medicalSummary,
-                style: GoogleFonts.inter(
-                  height: 1.6,
-                  fontSize: 16,
+            GestureDetector(
+              onTap: _isRecording ? _stopAndAnalyze : _startRecording,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isRecording
+                      ? Colors.red.withOpacity(0.8)
+                      : Colors.purple.withOpacity(0.8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _isRecording
+                          ? Colors.red.withOpacity(0.5)
+                          : Colors.purple.withOpacity(0.5),
+                      blurRadius: 30,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _isRecording ? Icons.stop : Icons.mic,
+                  size: 50,
                   color: Colors.white,
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _isRecording ? 'Recording... Tap to Stop' : 'Tap to Record',
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+            const SizedBox(height: 30),
+            if (_isLoading)
+              const CircularProgressIndicator(color: Colors.purple),
+            if (_summary.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                ),
+                child: Text(
+                  _summary,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                ),
+              ),
+          ],
         ),
-      ).animate().fade(duration: 600.ms).slideY(begin: 0.1);
-    }
-
-    return const SizedBox.shrink();
+      ),
+    );
   }
 }
