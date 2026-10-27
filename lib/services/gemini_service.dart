@@ -1,101 +1,72 @@
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 
+/// Client-side safety checks only. AI analysis must be provided by a
+/// trusted backend; API secrets must never be embedded in the mobile app.
 class GeminiService extends ChangeNotifier {
-  final String _apiKey = 'AIzaSyCGZnfjWql6UUUkQF5y6nRtbmf2w7zzXDI';
   bool isParsing = false;
-  
-  // Scam Shield State
+
   String analysisResult = '';
   int riskScore = 0;
   bool isScamDetected = false;
-
-  // Medical Translation State
   String medicalSummary = '';
 
-  void _setLoading(bool value) {
-    isParsing = value;
-    notifyListeners();
-  }
-
   Future<void> analyzeText(String userText) async {
-    if (userText.trim().isEmpty) {
-      analysisResult = 'Please enter some text to analyze.';
+    final text = userText.trim();
+    if (text.isEmpty) {
+      analysisResult = 'Please enter a message to check.';
       riskScore = 0;
       isScamDetected = false;
       notifyListeners();
       return;
     }
 
-    _setLoading(true);
+    isParsing = true;
     analysisResult = '';
-
-    try {
-      final model = GenerativeModel(
-        model: 'gemini-1.5-pro-latest',
-        apiKey: _apiKey,
-        generationConfig: GenerationConfig(responseMimeType: 'application/json'),
-      );
-
-      final prompt = '''
-      You are an expert scam and fraud detector. Analyze this text for scams (high-pressure, voice cloning, phishing).
-      Return ONLY a JSON object with this exact structure:
-      {
-        "risk_score": <number between 0 and 100>,
-        "reason": "<short explanation why it's safe or a scam (max 2 sentences)>"
-      }
-      
-      Text to analyze: "$userText"
-      ''';
-
-      final content = [Content.text(prompt)];
-      final response = await model.generateContent(content);
-      final responseText = response.text?.trim() ?? '{}';
-      
-      final Map<String, dynamic> jsonResponse = jsonDecode(responseText);
-      
-      riskScore = jsonResponse['risk_score'] ?? 0;
-      analysisResult = jsonResponse['reason'] ?? 'Unknown formatting.';
-      isScamDetected = riskScore > 50;
-
-    } catch (e) {
-      analysisResult = 'Error connecting to Gemini: $e';
-      riskScore = 0;
-      isScamDetected = false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  Future<void> translateMedicalJargonAudio(Uint8List audioBytes, String mimeType) async {
-    if (audioBytes.isEmpty) return;
-
-    _setLoading(true);
-    medicalSummary = '';
     notifyListeners();
 
     try {
-      final model = GenerativeModel(
-        model: 'gemini-1.5-pro-latest',
-        apiKey: _apiKey,
-      );
-
-      final prompt = 'Summarize this medical audio for a family caregiver. Provide 3 clear actionable points.';
-
-      final content = [
-        Content.multi([
-          TextPart(prompt),
-          DataPart(mimeType, audioBytes),
-        ])
+      // Conservative offline screening for common warning signs. This is
+      // deliberately not represented as an AI verdict or a guarantee.
+      final lower = text.toLowerCase();
+      final patterns = <String>[
+        'otp',
+        'one time password',
+        'share your password',
+        'verify your bank',
+        'account will be blocked',
+        'urgent payment',
+        'send money immediately',
+        'claim your prize',
+        'click this link',
+        'remote access',
+        'gift card',
+        'crypto investment',
+        'upi pin',
       ];
+      final matches = patterns.where(lower.contains).toList();
+      riskScore = (matches.length * 22).clamp(0, 88).toInt();
+      isScamDetected = riskScore >= 44;
 
-      final response = await model.generateContent(content);
-      medicalSummary = response.text ?? 'Could not generate summary.';
-    } catch (e) {
-      medicalSummary = 'Error connecting to Gemini Audio API: $e';
+      if (matches.isEmpty) {
+        analysisResult =
+            'No common warning phrases were detected. This does not prove the message is safe. Verify the sender through an official channel and never share an OTP, password, or UPI PIN.';
+      } else {
+        analysisResult =
+            'Warning signs detected: ${matches.take(4).join(', ')}. Do not click links, share credentials, or send money until you independently verify the request. This is a basic offline check, not a definitive scam verdict.';
+      }
     } finally {
-      _setLoading(false);
+      isParsing = false;
+      notifyListeners();
     }
+  }
+
+  Future<void> translateMedicalJargonAudio(
+    Uint8List audioBytes,
+    String mimeType,
+  ) async {
+    medicalSummary =
+        'AI medical summarization is temporarily unavailable while a secure backend is configured. Please use the clinician’s written instructions and confirm any medication or treatment questions directly with a qualified healthcare professional.';
+    notifyListeners();
   }
 }

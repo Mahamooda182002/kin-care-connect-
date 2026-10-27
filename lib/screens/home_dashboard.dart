@@ -4,11 +4,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import '../theme/app_theme.dart';
-import '../services/firebase_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/glass_card.dart';
 
@@ -55,7 +53,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
       setState(() {
         _isMoving = true;
       });
-      context.read<FirebaseService>().updateLastActiveStatus(true);
     }
     _resetStillTimer();
   }
@@ -68,7 +65,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
           setState(() {
             _isMoving = false;
           });
-          context.read<FirebaseService>().updateLastActiveStatus(false);
         }
         
         // Trigger notification after 4 hours of no movement
@@ -127,6 +123,16 @@ class _HomeDashboardState extends State<HomeDashboard> {
           physics: const BouncingScrollPhysics(),
           slivers: [
             const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  'Preview only: movement is checked while this screen is open. This is not continuous monitoring and cannot detect medical emergencies. Do not rely on it as a safety system.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
