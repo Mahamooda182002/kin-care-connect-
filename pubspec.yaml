@@ -41,6 +41,11 @@ dependencies:
   flutter_animate: ^4.5.0
   provider: ^6.1.1
 
+dependency_overrides:
+  # Keep the Linux recorder implementation compatible with the resolved
+  # record_platform_interface API used by the current Flutter dependency graph.
+  record_linux: ^1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
