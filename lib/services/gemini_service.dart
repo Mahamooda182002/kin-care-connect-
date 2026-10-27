@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 /// Client-side safety checks only. AI analysis must be provided by a
@@ -44,7 +45,7 @@ class GeminiService extends ChangeNotifier {
         'upi pin',
       ];
       final matches = patterns.where(lower.contains).toList();
-      riskScore = (matches.length * 22).clamp(0, 88);
+      riskScore = (matches.length * 22).clamp(0, 88).toInt();
       isScamDetected = riskScore >= 44;
 
       if (matches.isEmpty) {
