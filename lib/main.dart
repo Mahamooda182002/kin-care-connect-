@@ -11,7 +11,6 @@ import 'services/firebase_service.dart';
 import 'services/gemini_service.dart';
 
 import 'services/notification_service.dart';
-import 'services/background_monitor_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +21,6 @@ void main() async {
   }
 
   await NotificationService.initialize();
-  await BackgroundMonitorService.initialize();
   runApp(
     MultiProvider(
       providers: [
